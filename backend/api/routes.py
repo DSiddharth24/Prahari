@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import logging
 from datetime import datetime
 from typing import Any
 
@@ -18,10 +19,64 @@ from backend.api.case_service import (
     get_dashboard_data,
     update_case_detected_at,
 )
-from backend.api.engine_bridge import engine
+from backend.api.engine_bridge import IS_FAKE, engine
 from backend.demo_data.generate import generate_demo_alerts
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["prahari"])
+
+
+# ---------------------------------------------------------------------------
+# Summary generation helper
+# ---------------------------------------------------------------------------
+
+
+def _trigger_summaries_for_unsummarised_cases() -> None:
+    """Call generate_summary for every case without a summary and persist via save_summary.
+
+    Works with both the fake in-memory store (IS_FAKE=True) and the real engine.
+    Errors from summary generation are logged and swallowed so they never block ingestion.
+    """
+    from backend.reporting.summary import (  # local import avoids circular
+        generate_summary,
+    )
+
+    if IS_FAKE:
+        for case in list(engine.store.cases.values()):
+            if case.summary:
+                continue
+            try:
+                facts = get_case_detail(case_id=case.id) or {}
+                result = generate_summary(facts)
+                engine.cases.save_summary(
+                    case.id,
+                    result["summary"],
+                    result["summary_source"],
+                    result["recommended_actions"],
+                )
+            except Exception:  # noqa: BLE001
+                logger.warning("Summary generation failed for case %s; skipping.", case.id)
+    else:
+        # Real engine path: iterate open cases via session
+        try:
+            with engine.get_session() as session:
+                unsummarised = session.query(engine.models.Case).filter(
+                    engine.models.Case.summary.is_(None)
+                ).all()
+            for case in unsummarised:
+                try:
+                    facts = get_case_detail(case_id=case.id) or {}
+                    result = generate_summary(facts)
+                    engine.cases.save_summary(
+                        case.id,
+                        result["summary"],
+                        result["summary_source"],
+                        result["recommended_actions"],
+                    )
+                except Exception:  # noqa: BLE001
+                    logger.warning("Summary generation failed for case %s; skipping.", case.id)
+        except Exception:  # noqa: BLE001
+            logger.warning("Could not query cases for summary generation; skipping.")
 
 
 class CaseActionRequest(BaseModel):
@@ -157,6 +212,7 @@ async def ingest_alerts(request: Request) -> dict[str, Any]:
             status_code=500, detail=f"Engine pipeline error: {err}"
         ) from err
 
+    _trigger_summaries_for_unsummarised_cases()
     return {"ingest": ingest_result, "pipeline": pipeline_result}
 
 
@@ -167,7 +223,7 @@ async def demo_load() -> dict[str, Any]:
     ingest_result = engine.ingest.ingest_alerts(alerts, actor="demo")
     pipeline_result = engine.pipeline.run_pipeline(actor="demo")
 
-    # Summary generation hook (stubbed until Step 4)
+    _trigger_summaries_for_unsummarised_cases()
     return {"ingest": ingest_result, "pipeline": pipeline_result}
 
 
@@ -274,3 +330,24 @@ async def update_case_detected_timestamp(
 async def get_dashboard() -> dict[str, Any]:
     """Get dashboard summary metrics, triage funnel, and open cases."""
     return get_dashboard_data()
+
+
+# ---------------------------------------------------------------------------
+# Alert restore endpoint (Step 4)
+# ---------------------------------------------------------------------------
+
+
+@router.post("/alerts/{id}/restore")
+async def restore_alert(id: int) -> dict[str, Any]:
+    """Restore a suppressed or merged alert back to 'new' status.
+
+    After restore, triggers summary generation for any cases that now lack a summary.
+    Returns 404 if alert does not exist.
+    """
+    try:
+        result = engine.alerts.restore(alert_id=id, actor="analyst")
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Alert {id} not found") from None
+
+    _trigger_summaries_for_unsummarised_cases()
+    return result

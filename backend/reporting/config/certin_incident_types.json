@@ -1,0 +1,13 @@
+{
+  "_note": "This list and the report fields are a working template; verify against the current official CERT-In directions and reporting form.",
+  "incident_types": [
+    "Targeted scanning/probing",
+    "Unauthorised access to IT systems/data",
+    "Malicious code/ransomware",
+    "Data breach",
+    "Data leak",
+    "Identity theft/spoofing/phishing",
+    "Attacks on servers or applications",
+    "Compromise of critical systems"
+  ]
+}

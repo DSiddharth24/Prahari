@@ -9,7 +9,7 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 from pydantic import BaseModel
 
 from backend.api.case_service import (
@@ -21,6 +21,13 @@ from backend.api.case_service import (
 )
 from backend.api.engine_bridge import IS_FAKE, engine
 from backend.demo_data.generate import generate_demo_alerts
+from backend.reporting.report import (
+    create_or_get_draft_report,
+    get_report,
+    mark_report_submitted,
+    render_report_pdf,
+    update_report,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["prahari"])
@@ -351,3 +358,92 @@ async def restore_alert(id: int) -> dict[str, Any]:
 
     _trigger_summaries_for_unsummarised_cases()
     return result
+# ---------------------------------------------------------------------------
+# CERT-In Report Endpoints (Step 5)
+# ---------------------------------------------------------------------------
+
+
+class ReportUpdateRequest(BaseModel):
+    fields: dict[str, Any] | None = None
+    narrative: str | None = None
+    incident_type: str | None = None
+    actor: str = "analyst"
+
+
+class ReportSubmitRequest(BaseModel):
+    reference_number: str
+    submitted_by: str
+
+
+@router.post("/cases/{id}/report")
+async def create_case_report(id: int) -> dict[str, Any]:
+    """Create (or return existing) draft CERT-In report for a case."""
+    try:
+        return create_or_get_draft_report(case_id=id, actor="analyst")
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Case {id} not found") from None
+
+
+@router.get("/reports/{id}")
+async def fetch_report(id: int) -> dict[str, Any]:
+    """Retrieve a report including its earlier version history."""
+    report = get_report(report_id=id)
+    if report is None:
+        raise HTTPException(status_code=404, detail=f"Report {id} not found")
+    return report
+
+
+@router.put("/reports/{id}")
+async def edit_report(id: int, payload: ReportUpdateRequest) -> dict[str, Any]:
+    """Edit report fields/narrative/incident_type, creating a new version."""
+    try:
+        return update_report(
+            report_id=id,
+            fields=payload.fields,
+            narrative=payload.narrative,
+            incident_type=payload.incident_type,
+            actor=payload.actor,
+        )
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Report {id} not found") from None
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err)) from err
+
+
+@router.get("/reports/{id}/pdf")
+async def download_report_pdf(id: int) -> Response:
+    """Export the CERT-In draft report as a downloadable PDF."""
+    try:
+        pdf_bytes = render_report_pdf(report_id=id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Report {id} not found") from None
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="certin-report-{id}.pdf"'
+        },
+    )
+
+
+@router.post("/reports/{id}/submitted")
+async def submit_report_manually(
+    id: int, payload: ReportSubmitRequest
+) -> dict[str, Any]:
+    """Mark a report as manually submitted by an analyst with a reference number."""
+    if not payload.reference_number or not payload.reference_number.strip():
+        raise HTTPException(status_code=400, detail="reference_number is required")
+    if not payload.submitted_by or not payload.submitted_by.strip():
+        raise HTTPException(status_code=400, detail="submitted_by is required")
+
+    try:
+        return mark_report_submitted(
+            report_id=id,
+            reference_number=payload.reference_number,
+            submitted_by=payload.submitted_by,
+        )
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Report {id} not found") from None
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err)) from err

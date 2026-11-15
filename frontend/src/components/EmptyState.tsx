@@ -1,10 +1,13 @@
-type Props = { title: string; body: string };
+import type { ReactNode } from 'react';
 
-export default function EmptyState({ title, body }: Props) {
+type Props = { title: string; body: string; children?: ReactNode };
+
+export default function EmptyState({ title, body, children }: Props) {
   return (
-    <div className="rounded-md border border-border bg-surface p-6">
-      <p className="text-16 font-medium">{title}</p>
-      <p className="mt-1 max-w-[65ch] text-14 text-text-secondary">{body}</p>
-    </div>
+    <section className="max-w-3xl border-y border-border bg-surface px-5 py-7 sm:px-7">
+      <h2 className="text-19 font-semibold tracking-heading">{title}</h2>
+      <p className="mt-2 max-w-[65ch] text-14 text-text-secondary">{body}</p>
+      {children ? <div className="mt-5">{children}</div> : null}
+    </section>
   );
 }

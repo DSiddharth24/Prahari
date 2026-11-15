@@ -1,0 +1,144 @@
+# backend/rules/rules.yaml
+# Prahari suppression, deduplication, and correlation rules.
+# Editable via the Settings UI (GET/PUT /api/settings → rules_yaml field).
+# HACKATHON DEMO — rules are illustrative, not security-verified.
+
+# ---------------------------------------------------------------------------
+# 1. SUPPRESSION RULES
+#    If an alert matches ALL conditions in a rule it is marked suppressed_benign.
+#    Conditions are ANDed.  Supported matchers:
+#      source, category, severity_raw, title_contains, host_contains,
+#      src_ip_in, process_contains, user_contains
+# ---------------------------------------------------------------------------
+suppression_rules:
+
+  - id: suppress_known_scanner
+    description: "Port scans from known scanning services (e.g. Shodan, Censys)"
+    conditions:
+      category: port_scan
+      src_ip_in:
+        - "198.108.66.0/24"    # Shodan range (illustrative)
+        - "162.142.125.0/24"   # Censys range (illustrative)
+        - "205.210.31.0/24"    # Censys range (illustrative)
+    reason: "Port scan from known benign scanning service"
+
+  - id: suppress_backup_activity
+    description: "Scheduled backup jobs during maintenance window"
+    conditions:
+      category: backup_activity
+    reason: "Routine backup activity — informational only"
+
+  - id: suppress_informational_low
+    description: "Informational alerts with low severity are noise"
+    conditions:
+      category: informational
+      severity_raw: low
+    reason: "Low-severity informational alert suppressed as routine noise"
+
+  - id: suppress_failed_login_single_low
+    description: "A single low-severity failed login is normal"
+    conditions:
+      category: failed_login
+      severity_raw: low
+    reason: "Single low-severity failed login — expected noise"
+
+
+# ---------------------------------------------------------------------------
+# 2. DEDUPLICATION RULES
+#    Two alerts are duplicates if they share the same (category, user OR host)
+#    within dedupe_window_minutes (from settings).
+#    The first alert in time is kept as canonical; later ones become
+#    merged_duplicate pointing to it.
+# ---------------------------------------------------------------------------
+dedup_keys:
+  - [category, user]
+  - [category, host]
+  - [category, src_ip]
+
+
+# ---------------------------------------------------------------------------
+# 3. CORRELATION RULES
+#    Each rule defines a pattern name and the set of alert categories that
+#    must ALL appear in the same correlation window (correlation_window_hours
+#    from settings) and share at least one linking entity (user OR host OR ip).
+#
+#    min_sources: how many distinct sources must contribute (default 1).
+#    Required matching fields can narrow which alerts qualify.
+# ---------------------------------------------------------------------------
+correlation_rules:
+
+  - pattern: account_takeover_then_exfiltration
+    description: "Suspicious login → mass file access → data exfiltration tool or large outbound"
+    required_categories:
+      - suspicious_login
+      - mass_file_access
+    supporting_categories:
+      - data_exfiltration
+      - malware
+    min_sources: 2
+
+  - pattern: ransomware_behaviour
+    description: "Malware detection + large outbound transfer or ransomware behaviour alert"
+    required_categories:
+      - malware
+    supporting_categories:
+      - ransomware_behaviour
+      - data_exfiltration
+    min_sources: 1
+
+  - pattern: phishing_to_compromise
+    description: "Phishing email → mailbox rule change → suspicious login or privilege escalation"
+    required_categories:
+      - phishing
+    supporting_categories:
+      - mailbox_rule_change
+      - suspicious_login
+      - privilege_change
+    min_sources: 2
+
+  - pattern: recon_then_access
+    description: "Port scan followed by successful or suspicious login"
+    required_categories:
+      - port_scan
+      - suspicious_login
+    supporting_categories:
+      - failed_login
+    min_sources: 1
+
+
+# ---------------------------------------------------------------------------
+# 4. SCORING WEIGHTS
+#    Each factor adds points to the case score (max 100).
+#    Thresholds: low <35 | medium 35-59 | high 60-79 | critical >=80
+# ---------------------------------------------------------------------------
+scoring:
+  pattern_match:
+    account_takeover_then_exfiltration: 40
+    ransomware_behaviour: 45
+    phishing_to_compromise: 35
+    recon_then_access: 20
+    none: 0
+
+  source_diversity:        # points per distinct source above 1
+    per_extra_source: 5
+    max: 15
+
+  severity_max:            # highest severity_raw in the case
+    critical: 20
+    high:     12
+    medium:    6
+    low:       2
+
+  alert_count:             # number of alerts in the case
+    thresholds:
+      - {min: 2,  max: 3,  points: 5}
+      - {min: 4,  max: 6,  points: 10}
+      - {min: 7,  max: 999, points: 15}
+
+  critical_asset_hit: 15   # any alert involves a known critical asset (host/user)
+
+  large_outbound: 10       # any alert has bytes_out > outbound_bytes_threshold (settings)
+
+  time_compression:        # all alerts within a short window suggests automated attack
+    window_minutes: 60
+    points: 5

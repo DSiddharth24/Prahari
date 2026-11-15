@@ -67,22 +67,28 @@ def _trigger_summaries_for_unsummarised_cases() -> None:
     else:
         # Real engine path: iterate open cases via session
         try:
-            with engine.get_session() as session:
-                unsummarised = session.query(engine.models.Case).filter(
-                    engine.models.Case.summary.is_(None)
-                ).all()
-            for case in unsummarised:
+            session = engine.get_session()
+            try:
+                unsummarised_ids = [
+                    c.id for c in session.query(engine.models.Case).filter(
+                        engine.models.Case.summary.is_(None)
+                    ).all()
+                ]
+            finally:
+                session.close()
+
+            for case_id in unsummarised_ids:
                 try:
-                    facts = get_case_detail(case_id=case.id) or {}
+                    facts = get_case_detail(case_id=case_id) or {}
                     result = generate_summary(facts)
                     engine.cases.save_summary(
-                        case.id,
+                        case_id,
                         result["summary"],
                         result["summary_source"],
                         result["recommended_actions"],
                     )
                 except Exception:  # noqa: BLE001
-                    logger.warning("Summary generation failed for case %s; skipping.", case.id)
+                    logger.warning("Summary generation failed for case %s; skipping.", case_id)
         except Exception:  # noqa: BLE001
             logger.warning("Could not query cases for summary generation; skipping.")
 
@@ -347,15 +353,13 @@ async def get_dashboard() -> dict[str, Any]:
 
 @router.post("/alerts/{id}/restore")
 async def restore_alert(id: int) -> dict[str, Any]:
-    """Restore a suppressed or merged alert back to 'new' status.
-
-    After restore, triggers summary generation for any cases that now lack a summary.
-    Returns 404 if alert does not exist.
-    """
+    """Restore a suppressed or merged alert back to 'new' status."""
     try:
         result = engine.alerts.restore(alert_id=id, actor="analyst")
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Alert {id} not found") from None
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err)) from err
 
     _trigger_summaries_for_unsummarised_cases()
     return result
@@ -461,8 +465,12 @@ class SettingsUpdateRequest(BaseModel):
 
 
 def _serialize_item(obj: Any) -> dict[str, Any]:
+    """Convert an ORM object or plain dict to a serialisable dict."""
+    if isinstance(obj, dict):
+        return obj
     if hasattr(obj, "to_dict"):
         return obj.to_dict()
+    # Last resort: strip SQLAlchemy private attrs
     return {k: v for k, v in obj.__dict__.items() if not k.startswith("_")}
 
 
@@ -481,12 +489,15 @@ async def list_alerts(
         items.sort(key=lambda a: a.timestamp, reverse=True)
         return [_serialize_item(a) for a in items]
 
-    with engine.get_session() as session:
+    session = engine.get_session()
+    try:
         q = session.query(engine.models.Alert)
         if status:
             q = q.filter(engine.models.Alert.status == status)
         items = q.order_by(engine.models.Alert.timestamp.desc()).all()
-        return [_serialize_item(a) for a in items]
+        return [a.to_dict() for a in items]
+    finally:
+        session.close()
 
 
 @router.get("/audit")

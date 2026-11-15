@@ -32,7 +32,7 @@ def restore(alert_id: int, actor: str = "analyst") -> dict:
     try:
         alert = session.query(Alert).filter(Alert.id == alert_id).first()
         if alert is None:
-            raise ValueError(f"Alert {alert_id} not found.")
+            raise KeyError(f"Alert {alert_id} not found.")
         if alert.status not in _RESTORABLE_STATUSES:
             raise ValueError(
                 f"Alert {alert_id} has status '{alert.status}' and cannot be restored. "

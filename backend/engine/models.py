@@ -324,13 +324,18 @@ class Report(Base):
         self.fields_raw = json.dumps(value)
 
     def to_dict(self, history=None):
+        fields_data = self.fields or {}
+        # history is stored inside fields_raw under the "_history" key for the real engine
+        extracted_history = fields_data.pop("_history", []) if isinstance(fields_data, dict) else []
+        if history is None:
+            history = extracted_history
         d = {
             "id":            self.id,
             "case_id":       self.case_id,
             "incident_type": self.incident_type,
-            "fields":        self.fields,
+            "fields":        fields_data,
             "narrative":     self.narrative,
-            "generated_at":  self.generated_at.isoformat() if self.generated_at else None,
+            "generated_at":  self.generated_at.isoformat() if self.generated_at and hasattr(self.generated_at, 'isoformat') else self.generated_at,
             "status":        self.status,
             "version":       self.version,
         }

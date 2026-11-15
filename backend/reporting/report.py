@@ -64,6 +64,11 @@ def _now_utc_iso() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _now_utc_dt() -> datetime:
+    """Return a timezone-aware UTC datetime for ORM DateTime columns."""
+    return datetime.now(UTC)
+
+
 def _suggest_incident_type(pattern: str | None) -> str:
     if pattern and pattern in PATTERN_TO_INCIDENT_TYPE:
         return PATTERN_TO_INCIDENT_TYPE[pattern]
@@ -90,10 +95,13 @@ def _build_narrative(case_detail: dict[str, Any]) -> str:
 
 
 def _collect_actions_taken(case_id: int) -> list[str]:
+    # audit.list_events() always returns plain dicts — no .to_dict() needed
     events = engine.audit.list_events(target_type="case", target_id=case_id, limit=100)
     actions: list[str] = []
-    for ev in events:
-        ev_dict = ev.to_dict() if hasattr(ev, "to_dict") else ev.__dict__
+    for ev_dict in events:
+        if not isinstance(ev_dict, dict):
+            # safety: if someone passes an ORM object, convert it
+            ev_dict = ev_dict.to_dict() if hasattr(ev_dict, "to_dict") else {}
         act = ev_dict.get("action", "")
         actor = ev_dict.get("actor", "system")
         ts_ist = _to_ist_label(ev_dict.get("timestamp"))
@@ -104,48 +112,81 @@ def _collect_actions_taken(case_id: int) -> list[str]:
     return actions
 
 
+def _dt_to_iso(val: Any) -> str | None:
+    """Convert a datetime or ISO string to a consistent ISO-8601 string."""
+    if val is None:
+        return None
+    if isinstance(val, str):
+        return val
+    if hasattr(val, "strftime"):
+        # datetime object — ensure UTC label
+        try:
+            if val.tzinfo is None:
+                val = val.replace(tzinfo=UTC)
+            return val.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        except Exception:
+            return str(val)
+    return str(val)
+
+
 def _report_to_dict(rep: Any) -> dict[str, Any]:
     if hasattr(rep, "to_dict"):
         data = rep.to_dict()
     else:
+        fields_data = copy.deepcopy(rep.fields) if hasattr(rep, "fields") else {}
+        # For the real engine: history is stored inside fields under "_history"
+        history = fields_data.pop("_history", []) if isinstance(fields_data, dict) else []
         data = {
             "id": rep.id,
             "case_id": rep.case_id,
             "incident_type": rep.incident_type,
-            "fields": copy.deepcopy(rep.fields),
+            "fields": fields_data,
             "narrative": rep.narrative,
-            "generated_at": rep.generated_at,
+            "generated_at": _dt_to_iso(rep.generated_at),
             "status": rep.status,
             "version": rep.version,
-            "history": copy.deepcopy(getattr(rep, "history", []) or []),
+            "history": history,
         }
     data.setdefault("history", [])
+    # Normalise generated_at to ISO string in all code paths
+    data["generated_at"] = _dt_to_iso(data.get("generated_at"))
     return data
 
 
-def _find_report_by_case(case_id: int) -> Any | None:
+def _find_report_by_case(case_id: int) -> dict[str, Any] | None:
+    """Return the first report dict for a case, or None."""
     if IS_FAKE:
         for rep in engine.store.reports.values():
             if rep.case_id == case_id:
-                return rep
+                return _report_to_dict(rep)
         return None
-    with engine.get_session() as session:
-        return (
+    session = engine.get_session()
+    try:
+        rep = (
             session.query(engine.models.Report)
             .filter(engine.models.Report.case_id == case_id)
             .first()
         )
+        return _report_to_dict(rep) if rep is not None else None
+    finally:
+        session.close()
 
 
-def _get_report_obj(report_id: int) -> Any | None:
+def _get_report_obj_dict(report_id: int) -> dict[str, Any] | None:
+    """Return report as a dict (session closed), or None."""
     if IS_FAKE:
-        return engine.store.reports.get(report_id)
-    with engine.get_session() as session:
-        return (
+        rep = engine.store.reports.get(report_id)
+        return _report_to_dict(rep) if rep is not None else None
+    session = engine.get_session()
+    try:
+        rep = (
             session.query(engine.models.Report)
             .filter(engine.models.Report.id == report_id)
             .first()
         )
+        return _report_to_dict(rep) if rep is not None else None
+    finally:
+        session.close()
 
 
 def create_or_get_draft_report(case_id: int, actor: str = "analyst") -> dict[str, Any]:
@@ -156,7 +197,7 @@ def create_or_get_draft_report(case_id: int, actor: str = "analyst") -> dict[str
 
     existing = _find_report_by_case(case_id)
     if existing is not None:
-        return _report_to_dict(existing)
+        return existing
 
     incident_type = _suggest_incident_type(case_detail.get("pattern"))
     detected_utc = case_detail.get("detected_at") or _now_utc_iso()
@@ -210,14 +251,16 @@ def create_or_get_draft_report(case_id: int, actor: str = "analyst") -> dict[str
         case_obj = engine.store.cases.get(case_id)
         if case_obj is not None:
             case_obj.report_id = report_id
+        result_dict = _report_to_dict(rep)
     else:
-        with engine.get_session() as session:
+        session = engine.get_session()
+        try:
             rep = engine.models.Report(
                 case_id=case_id,
                 incident_type=incident_type,
-                fields=fields,
+                fields_raw=json.dumps(fields),
                 narrative=narrative,
-                generated_at=now_utc,
+                generated_at=_now_utc_dt(),   # datetime object for SQLite DateTime column
                 status="draft",
                 version=1,
             )
@@ -227,24 +270,23 @@ def create_or_get_draft_report(case_id: int, actor: str = "analyst") -> dict[str
             if case_obj is not None:
                 case_obj.report_id = rep.id
             session.commit()
-            session.refresh(rep)
+            result_dict = _report_to_dict(rep)
+        finally:
+            session.close()
 
     engine.audit.record(
         actor=actor,
         action="report_generated",
         target_type="report",
-        target_id=rep.id,
+        target_id=result_dict["id"],
         details={"case_id": case_id, "version": 1, "incident_type": incident_type},
     )
-    return _report_to_dict(rep)
+    return result_dict
 
 
 def get_report(report_id: int) -> dict[str, Any] | None:
     """Fetch a report by ID including its version history."""
-    rep = _get_report_obj(report_id)
-    if rep is None:
-        return None
-    return _report_to_dict(rep)
+    return _get_report_obj_dict(report_id)
 
 
 def update_report(
@@ -255,66 +297,90 @@ def update_report(
     actor: str = "analyst",
 ) -> dict[str, Any]:
     """Update a report, archiving the previous snapshot into history and bumping version."""
-    rep = _get_report_obj(report_id)
-    if rep is None:
-        raise KeyError(f"Report {report_id} not found")
-
-    if fields is None and narrative is None and incident_type is None:
-        raise ValueError("At least one of fields, narrative, or incident_type must be provided")
-
-    prior_snapshot = {
-        "version": rep.version,
-        "incident_type": rep.incident_type,
-        "fields": copy.deepcopy(rep.fields),
-        "narrative": rep.narrative,
-        "generated_at": rep.generated_at,
-        "status": rep.status,
-    }
-
-    current_history = list(getattr(rep, "history", []) or [])
-    current_history.append(prior_snapshot)
-
-    merged_fields = copy.deepcopy(rep.fields)
-    if fields is not None:
-        merged_fields.update(fields)
-    if incident_type is not None:
-        rep.incident_type = incident_type
-        merged_fields["incident_type"] = incident_type
-    elif "incident_type" in merged_fields:
-        rep.incident_type = merged_fields["incident_type"]
-
-    if narrative is not None:
-        rep.narrative = narrative
-
-    rep.fields = merged_fields
-    rep.version = rep.version + 1
-    rep.generated_at = _now_utc_iso()
-
     if IS_FAKE:
+        rep = engine.store.reports.get(report_id)
+        if rep is None:
+            raise KeyError(f"Report {report_id} not found")
+
+        if fields is None and narrative is None and incident_type is None:
+            raise ValueError("At least one of fields, narrative, or incident_type must be provided")
+
+        prior_snapshot = {
+            "version": rep.version,
+            "incident_type": rep.incident_type,
+            "fields": copy.deepcopy(rep.fields),
+            "narrative": rep.narrative,
+            "generated_at": rep.generated_at,
+            "status": rep.status,
+        }
+        current_history = list(getattr(rep, "history", []) or [])
+        current_history.append(prior_snapshot)
+
+        merged_fields = copy.deepcopy(rep.fields)
+        if fields is not None:
+            merged_fields.update(fields)
+        if incident_type is not None:
+            rep.incident_type = incident_type
+            merged_fields["incident_type"] = incident_type
+        if narrative is not None:
+            rep.narrative = narrative
+        rep.fields = merged_fields
+        rep.version = rep.version + 1
+        rep.generated_at = _now_utc_iso()
         rep.history = current_history
+        result_dict = _report_to_dict(rep)
     else:
-        with engine.get_session() as session:
+        if fields is None and narrative is None and incident_type is None:
+            raise ValueError("At least one of fields, narrative, or incident_type must be provided")
+
+        session = engine.get_session()
+        try:
             db_rep = session.query(engine.models.Report).filter_by(id=report_id).first()
-            if db_rep is not None:
-                db_rep.incident_type = rep.incident_type
-                db_rep.fields = rep.fields
-                db_rep.narrative = rep.narrative
-                db_rep.version = rep.version
-                db_rep.generated_at = rep.generated_at
-                if hasattr(db_rep, "history"):
-                    db_rep.history = current_history
-                session.commit()
-                session.refresh(db_rep)
-                rep = db_rep
+            if db_rep is None:
+                raise KeyError(f"Report {report_id} not found")
+
+            # Archive current state into history (stored in fields_raw as a JSON key)
+            current_fields = db_rep.fields or {}
+            prior_snapshot = {
+                "version": db_rep.version,
+                "incident_type": db_rep.incident_type,
+                "fields": copy.deepcopy(current_fields),
+                "narrative": db_rep.narrative,
+                "generated_at": _dt_to_iso(db_rep.generated_at),  # datetime → ISO string
+                "status": db_rep.status,
+            }
+            # History is stored in a separate JSON field inside fields_raw under key "_history"
+            existing_history = current_fields.pop("_history", []) or []
+            existing_history.append(prior_snapshot)
+
+            merged_fields = copy.deepcopy(current_fields)
+            if fields is not None:
+                # Don't allow callers to overwrite _history via fields
+                fields.pop("_history", None)
+                merged_fields.update(fields)
+            if incident_type is not None:
+                db_rep.incident_type = incident_type
+                merged_fields["incident_type"] = incident_type
+            if narrative is not None:
+                db_rep.narrative = narrative
+
+            merged_fields["_history"] = existing_history
+            db_rep.fields = merged_fields           # uses the property setter → JSON
+            db_rep.version = db_rep.version + 1
+            db_rep.generated_at = _now_utc_dt()    # datetime for SQLite DateTime column
+            session.commit()
+            result_dict = _report_to_dict(db_rep)
+        finally:
+            session.close()
 
     engine.audit.record(
         actor=actor,
         action="report_edited",
         target_type="report",
         target_id=report_id,
-        details={"new_version": rep.version},
+        details={"new_version": result_dict["version"]},
     )
-    return _report_to_dict(rep)
+    return result_dict
 
 
 def mark_report_submitted(
@@ -328,35 +394,48 @@ def mark_report_submitted(
     if not submitted_by or not submitted_by.strip():
         raise ValueError("submitted_by is required")
 
-    rep = _get_report_obj(report_id)
-    if rep is None:
-        raise KeyError(f"Report {report_id} not found")
-
     submitted_at_utc = _now_utc_iso()
-    rep.status = "submitted_manually"
-    updated_fields = copy.deepcopy(rep.fields)
-    updated_fields["manual_submission"] = {
-        "reference_number": reference_number.strip(),
-        "submitted_by": submitted_by.strip(),
-        "submitted_at_ist": _to_ist_label(submitted_at_utc),
-        "submitted_at_utc": submitted_at_utc,
-    }
-    rep.fields = updated_fields
 
     if IS_FAKE:
+        rep = engine.store.reports.get(report_id)
+        if rep is None:
+            raise KeyError(f"Report {report_id} not found")
+        rep.status = "submitted_manually"
+        updated_fields = copy.deepcopy(rep.fields)
+        updated_fields["manual_submission"] = {
+            "reference_number": reference_number.strip(),
+            "submitted_by": submitted_by.strip(),
+            "submitted_at_ist": _to_ist_label(submitted_at_utc),
+            "submitted_at_utc": submitted_at_utc,
+        }
+        rep.fields = updated_fields
         case_obj = engine.store.cases.get(rep.case_id)
         if case_obj is not None:
             case_obj.status = "reported"
+        result_dict = _report_to_dict(rep)
     else:
-        with engine.get_session() as session:
+        session = engine.get_session()
+        try:
             db_rep = session.query(engine.models.Report).filter_by(id=report_id).first()
-            if db_rep is not None:
-                db_rep.status = "submitted_manually"
-                db_rep.fields = updated_fields
-            case_obj = session.query(engine.models.Case).filter_by(id=rep.case_id).first()
+            if db_rep is None:
+                raise KeyError(f"Report {report_id} not found")
+            case_id_for_update = db_rep.case_id
+            db_rep.status = "submitted_manually"
+            updated_fields = copy.deepcopy(db_rep.fields or {})
+            updated_fields["manual_submission"] = {
+                "reference_number": reference_number.strip(),
+                "submitted_by": submitted_by.strip(),
+                "submitted_at_ist": _to_ist_label(submitted_at_utc),
+                "submitted_at_utc": submitted_at_utc,
+            }
+            db_rep.fields = updated_fields
+            case_obj = session.query(engine.models.Case).filter_by(id=case_id_for_update).first()
             if case_obj is not None:
                 case_obj.status = "reported"
             session.commit()
+            result_dict = _report_to_dict(db_rep)
+        finally:
+            session.close()
 
     engine.audit.record(
         actor=submitted_by.strip(),
@@ -369,7 +448,7 @@ def mark_report_submitted(
             "submitted_at_utc": submitted_at_utc,
         },
     )
-    return _report_to_dict(rep)
+    return result_dict
 
 
 def render_report_pdf(report_id: int) -> bytes:

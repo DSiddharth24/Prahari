@@ -170,11 +170,11 @@ export default function ReportPage() {
         title={`CERT-In report · ${query.data.id}`}
         description={`Version ${selectedReport.version} · Generated ${formatIST(selectedReport.generated_at)} · ${selectedReport.status.replaceAll('_', ' ')}`}
       />
-      <div role="note" className="sticky top-14 z-20 mb-6 border-y border-warning bg-chip-medium-bg px-4 py-3 text-13 font-semibold text-chip-medium-fg">
+      <div role="note" className="sticky top-14 z-20 mb-6 rounded-2xl border border-warning bg-chip-medium-bg px-4 py-3 text-13 font-semibold text-chip-medium-fg">
         DRAFT, for analyst review. Verify against the official CERT-In form before submission.
       </div>
       {isHistorical ? (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-l-2 border-info bg-surface px-4 py-3">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-surface px-4 py-3 shadow-sm">
           <p className="text-13">Viewing saved version {selectedReport.version}. This version cannot be edited.</p>
           <QuietButton type="button" onClick={() => setSelectedVersion(null)}>Return to current version</QuietButton>
         </div>
@@ -182,7 +182,7 @@ export default function ReportPage() {
 
       <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_16rem]">
         <form className="min-w-0 space-y-6" onSubmit={(event) => { event.preventDefault(); void saveVersion(); }}>
-          <section aria-labelledby="report-fields-heading">
+          <section aria-labelledby="report-fields-heading" className="rounded-3xl bg-surface p-5 shadow-sm sm:p-6">
             <h2 id="report-fields-heading" className="mb-4 text-16 font-semibold">Report details</h2>
             <div className="grid gap-4 sm:grid-cols-2">
               {fieldRows.map(({ key, label, multiline }) => (
@@ -225,7 +225,7 @@ export default function ReportPage() {
               {evidenceError ? <p id="evidence-error" role="alert" className="mt-1 text-12 text-error">{evidenceError}</p> : null}
             </div>
           </section>
-          <section>
+          <section className="rounded-3xl bg-surface p-5 shadow-sm sm:p-6">
             <FormField label="Narrative">
               <textarea className={controlClass('min-h-48 resize-y')} value={narrative} onChange={(event) => setNarrative(event.target.value)} disabled={!editable} />
             </FormField>
@@ -241,7 +241,7 @@ export default function ReportPage() {
           </div>
         </form>
 
-        <aside aria-labelledby="history-heading" className="border-t border-border pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+        <aside aria-labelledby="history-heading" className="rounded-3xl bg-surface p-5 shadow-sm sm:p-6">
           <h2 id="history-heading" className="text-16 font-semibold">Version history</h2>
           <ol className="mt-3 space-y-3">
             {versions.map((version) => (
@@ -249,7 +249,7 @@ export default function ReportPage() {
                 <p className="text-13 font-semibold">Version {version.version}{version.version === query.data.version ? ' · current' : ''}</p>
                 <p className="mt-1 text-12 text-text-secondary">{formatIST(version.generated_at)}</p>
                 {version.version !== selectedReport.version ? (
-                  <button type="button" onClick={() => setSelectedVersion(version.version)} className="mt-2 inline-flex min-h-9 items-center gap-1 text-12 font-medium text-info underline underline-offset-2">
+                  <button type="button" onClick={() => setSelectedVersion(version.version)} className="mt-2 inline-flex min-h-9 items-center gap-1 rounded-full border border-transparent px-3 text-12 font-medium text-text underline underline-offset-2 hover:bg-sunken">
                     <Eye size={14} aria-hidden="true" />View this version
                   </button>
                 ) : <span className="mt-2 block text-12 text-text-muted">Currently viewing</span>}

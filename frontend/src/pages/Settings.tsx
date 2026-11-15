@@ -45,8 +45,8 @@ export default function SettingsPage() {
       {query.isLoading ? <LoadingSkeleton rows={5} /> : null}
       {query.isError ? <ErrorState message={errorDetail(query.error)} onRetry={() => void query.refetch()} /> : null}
       {values ? (
-        <form className="max-w-4xl space-y-8" onSubmit={saveSettings}>
-          <section aria-labelledby="rules-heading">
+        <form className="max-w-4xl space-y-6" onSubmit={saveSettings}>
+          <section aria-labelledby="rules-heading" className="rounded-3xl bg-surface p-5 shadow-sm sm:p-6">
             <h2 id="rules-heading" className="mb-1 text-16 font-semibold">Suppression rules</h2>
             <p className="mb-3 text-13 text-text-secondary">Edit the rule text that identifies routine or duplicate alerts. Invalid YAML is rejected by the server.</p>
             <FormField label="Rules YAML">
@@ -60,7 +60,7 @@ export default function SettingsPage() {
               />
             </FormField>
           </section>
-          <section aria-labelledby="windows-heading">
+          <section aria-labelledby="windows-heading" className="rounded-3xl bg-surface p-5 shadow-sm sm:p-6">
             <h2 id="windows-heading" className="mb-3 text-16 font-semibold">Alert windows</h2>
             <div className="grid gap-4 sm:grid-cols-3">
               <FormField label="Correlation window (hours)" hint="Alerts in this time range can be linked.">
@@ -74,7 +74,7 @@ export default function SettingsPage() {
               </FormField>
             </div>
           </section>
-          <section aria-labelledby="assets-heading">
+          <section aria-labelledby="assets-heading" className="rounded-3xl bg-surface p-5 shadow-sm sm:p-6">
             <h2 id="assets-heading" className="mb-1 text-16 font-semibold">Critical assets</h2>
             <p className="mb-3 text-13 text-text-secondary">One asset name per line. These names help analysts identify systems that need prompt review.</p>
             <FormField label="Asset names">
@@ -82,7 +82,7 @@ export default function SettingsPage() {
             </FormField>
           </section>
           {save.isError ? <p role="alert" className="border-l-4 border-error bg-surface px-3 py-2 text-13 text-error">{errorDetail(save.error)}</p> : null}
-          <div className="border-t border-border pt-4">
+          <div className="rounded-3xl bg-surface p-5 shadow-sm sm:p-6">
             <Button type="submit" disabled={save.isPending}>
               {save.isPending ? 'Saving settings…' : 'Save settings'}
             </Button>

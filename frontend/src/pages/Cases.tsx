@@ -46,7 +46,7 @@ export default function Cases() {
   return (
     <>
       <PageHeader title="Cases" description="Review related alerts together. The score is a triage aid, not a finding." />
-      <section aria-label="Case filters" className="mb-5 grid gap-3 border-y border-border py-4 sm:grid-cols-3">
+      <section aria-label="Case filters" className="mb-5 grid gap-3 rounded-3xl bg-surface p-5 shadow-sm sm:grid-cols-3">
         <FormField label="Severity">
           <select className={controlClass()} value={severity ?? ''} onChange={(event) => setFilter('severity', event.target.value)}>
             <option value="">All severities</option>
@@ -71,10 +71,10 @@ export default function Cases() {
       {query.isError ? <ErrorState message={errorDetail(query.error)} onRetry={() => void query.refetch()} /> : null}
       {query.data && items.length === 0 ? (
         severity || status || patternRaw ? (
-          <div className="border-y border-border bg-surface px-5 py-6">
+          <div className="rounded-3xl bg-surface px-5 py-6 shadow-sm">
             <h2 className="text-16 font-semibold">No cases match these filters</h2>
             <p className="mt-1 text-13 text-text-secondary">Clear a filter to broaden the case list.</p>
-            <button type="button" className="mt-3 min-h-10 rounded-sm border border-border-strong px-3 text-13 font-medium hover:bg-sunken" onClick={clearFilters}>Clear filters</button>
+            <button type="button" className="mt-3 min-h-10 rounded-full border border-border-strong px-4 text-13 font-medium hover:bg-sunken" onClick={clearFilters}>Clear filters</button>
           </div>
         ) : (
           <EmptyState title="No cases yet" body="Load the sample cases to see linked alerts, scores and review deadlines.">
@@ -85,10 +85,10 @@ export default function Cases() {
 
       {items.length > 0 ? (
         <>
-          <div className="hidden overflow-x-auto lg:block">
-            <table className="w-full border-collapse text-left text-13">
+          <div className="hidden overflow-x-auto rounded-3xl bg-surface p-4 shadow-sm lg:block">
+            <table className="w-full min-w-[900px] border-separate border-spacing-y-2 text-left text-13">
               <thead>
-                <tr className="border-y border-border bg-sunken text-12 uppercase tracking-label text-text-secondary">
+                <tr className="bg-sunken text-12 uppercase tracking-label text-text-secondary">
                   <th scope="col" className="px-3 py-3 font-semibold">Title</th>
                   <th scope="col" className="px-3 py-3 font-semibold">Severity</th>
                   <th scope="col" className="px-3 py-3 font-semibold">Score</th>
@@ -106,28 +106,28 @@ export default function Cases() {
                     aria-label={`Open case: ${item.title}`}
                     onClick={() => openRow(item.id)}
                     onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openRow(item.id); } }}
-                    className="cursor-pointer border-b border-border bg-surface hover:bg-sunken focus-visible:outline"
+                    className="cursor-pointer bg-sunken hover:bg-paper focus-visible:outline"
                   >
-                    <td className="max-w-sm px-3 py-3">
+                    <td className="max-w-sm rounded-l-2xl px-4 py-4">
                       <Link to={`/cases/${item.id}`} onClick={(event) => event.stopPropagation()} className="font-medium text-text underline-offset-2 hover:underline">
                         {item.title}
                       </Link>
                       <span className="mt-1 block text-12 text-text-muted">{patternLabel(item.pattern)}</span>
                     </td>
-                    <td className="px-3 py-3"><SeverityBadge severity={item.severity} /></td>
-                    <td className="px-3 py-3">
+                    <td className="px-3 py-4"><SeverityBadge severity={item.severity} /></td>
+                    <td className="px-3 py-4">
                       <span className="inline-flex items-center font-semibold tabular-nums" title="Triage score from linked evidence">{item.score}<InfoTip text="A prioritization aid from severity, evidence sources, entity overlap and time proximity. Review the case evidence before deciding." label={`How score ${item.score} is calculated`} /></span>
                     </td>
-                    <td className="px-3 py-3 tabular-nums">{item.sources_count} {item.sources_count === 1 ? 'source' : 'sources'}</td>
-                    <td className="whitespace-nowrap px-3 py-3">{item.first_alert_at ? formatIST(item.first_alert_at) : 'Not available'}</td>
-                    <td className="px-3 py-3"><StatusBadge status={item.status} /></td>
-                    <td className="whitespace-nowrap px-3 py-3"><CountdownBadge deadlineAt={item.deadline_at} status={item.status} /></td>
+                    <td className="px-3 py-4 tabular-nums">{item.sources_count} {item.sources_count === 1 ? 'source' : 'sources'}</td>
+                    <td className="whitespace-nowrap px-3 py-4">{item.first_alert_at ? formatIST(item.first_alert_at) : 'Not available'}</td>
+                    <td className="px-3 py-4"><StatusBadge status={item.status} /></td>
+                    <td className="whitespace-nowrap rounded-r-2xl px-3 py-4"><CountdownBadge deadlineAt={item.deadline_at} status={item.status} /></td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <ul className="divide-y divide-border border-y border-border lg:hidden">
+          <ul className="divide-y divide-border overflow-hidden rounded-3xl bg-surface shadow-sm lg:hidden">
             {items.map((item) => (
               <li key={item.id}>
                 <Link to={`/cases/${item.id}`} className="block bg-surface px-3 py-4 hover:bg-sunken">

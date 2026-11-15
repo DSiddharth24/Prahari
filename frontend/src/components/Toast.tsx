@@ -31,7 +31,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           >
             {message.tone === 'error' ? <CircleX size={18} aria-hidden="true" /> : <CircleCheck size={18} aria-hidden="true" />}
             <p className="min-w-0 flex-1 text-13">{message.text}</p>
-            <button type="button" className="rounded-sm p-1 text-text-secondary hover:bg-sunken" onClick={() => setMessages((items) => items.filter((item) => item.id !== message.id))} aria-label="Dismiss message">
+            <button type="button" className="rounded-full p-1 text-text-secondary hover:bg-sunken" onClick={() => setMessages((items) => items.filter((item) => item.id !== message.id))} aria-label="Dismiss message">
               <X size={16} aria-hidden="true" />
             </button>
           </div>

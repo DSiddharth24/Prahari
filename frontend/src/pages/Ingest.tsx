@@ -45,12 +45,12 @@ export default function Ingest() {
           <LoadDemoButton />
         </EmptyState>
       ) : (
-        <div className="max-w-3xl space-y-7">
-          <section aria-labelledby="upload-heading">
+        <div className="max-w-4xl space-y-6">
+          <section aria-labelledby="upload-heading" className="rounded-3xl bg-surface p-5 shadow-sm sm:p-6">
             <h2 id="upload-heading" className="mb-3 text-16 font-semibold">Upload alert file</h2>
             <label
               htmlFor="alert-file"
-              className="flex min-h-44 cursor-pointer flex-col items-center justify-center border border-dashed border-border-strong bg-surface px-5 py-6 text-center hover:bg-sunken"
+              className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-border-strong bg-sunken px-5 py-6 text-center hover:bg-paper"
               onDragOver={(event) => event.preventDefault()}
               onDrop={(event) => {
                 event.preventDefault();
@@ -72,7 +72,7 @@ export default function Ingest() {
             </div>
           </section>
           {result ? (
-            <section aria-labelledby="ingest-result-heading" role="status" className="border-y border-border bg-surface px-4 py-4">
+            <section aria-labelledby="ingest-result-heading" role="status" className="rounded-3xl bg-surface px-5 py-5 shadow-sm">
               <h2 id="ingest-result-heading" className="text-16 font-semibold">Ingest result</h2>
               <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {[
@@ -91,7 +91,7 @@ export default function Ingest() {
               </dl>
             </section>
           ) : null}
-          <section className="border-t border-border pt-5">
+          <section className="rounded-3xl bg-surface p-5 shadow-sm">
             <h2 className="text-16 font-semibold">Try the sample alerts</h2>
             <p className="mt-1 mb-3 text-13 text-text-secondary">The sample set includes four linked cases and reviewable suppressed and merged alerts.</p>
             <LoadDemoButton />

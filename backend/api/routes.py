@@ -9,7 +9,8 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request, Response
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from backend.api.case_service import (
@@ -21,6 +22,13 @@ from backend.api.case_service import (
 )
 from backend.api.engine_bridge import IS_FAKE, engine
 from backend.demo_data.generate import generate_demo_alerts
+from backend.reporting.report import (
+    create_or_get_draft_report,
+    get_report,
+    mark_report_submitted,
+    render_report_pdf,
+    update_report,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["prahari"])
@@ -351,3 +359,250 @@ async def restore_alert(id: int) -> dict[str, Any]:
 
     _trigger_summaries_for_unsummarised_cases()
     return result
+# ---------------------------------------------------------------------------
+# CERT-In Report Endpoints (Step 5)
+# ---------------------------------------------------------------------------
+
+
+class ReportUpdateRequest(BaseModel):
+    fields: dict[str, Any] | None = None
+    narrative: str | None = None
+    incident_type: str | None = None
+    actor: str = "analyst"
+
+
+class ReportSubmitRequest(BaseModel):
+    reference_number: str
+    submitted_by: str
+
+
+@router.post("/cases/{id}/report")
+async def create_case_report(id: int) -> dict[str, Any]:
+    """Create (or return existing) draft CERT-In report for a case."""
+    try:
+        return create_or_get_draft_report(case_id=id, actor="analyst")
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Case {id} not found") from None
+
+
+@router.get("/reports/{id}")
+async def fetch_report(id: int) -> dict[str, Any]:
+    """Retrieve a report including its earlier version history."""
+    report = get_report(report_id=id)
+    if report is None:
+        raise HTTPException(status_code=404, detail=f"Report {id} not found")
+    return report
+
+
+@router.put("/reports/{id}")
+async def edit_report(id: int, payload: ReportUpdateRequest) -> dict[str, Any]:
+    """Edit report fields/narrative/incident_type, creating a new version."""
+    try:
+        return update_report(
+            report_id=id,
+            fields=payload.fields,
+            narrative=payload.narrative,
+            incident_type=payload.incident_type,
+            actor=payload.actor,
+        )
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Report {id} not found") from None
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err)) from err
+
+
+@router.get("/reports/{id}/pdf")
+async def download_report_pdf(id: int) -> Response:
+    """Export the CERT-In draft report as a downloadable PDF."""
+    try:
+        pdf_bytes = render_report_pdf(report_id=id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Report {id} not found") from None
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="certin-report-{id}.pdf"'
+        },
+    )
+
+
+@router.post("/reports/{id}/submitted")
+async def submit_report_manually(
+    id: int, payload: ReportSubmitRequest
+) -> dict[str, Any]:
+    """Mark a report as manually submitted by an analyst with a reference number."""
+    if not payload.reference_number or not payload.reference_number.strip():
+        raise HTTPException(status_code=400, detail="reference_number is required")
+    if not payload.submitted_by or not payload.submitted_by.strip():
+        raise HTTPException(status_code=400, detail="submitted_by is required")
+
+    try:
+        return mark_report_submitted(
+            report_id=id,
+            reference_number=payload.reference_number,
+            submitted_by=payload.submitted_by,
+        )
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Report {id} not found") from None
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err)) from err
+
+    # ---------------------------------------------------------------------------
+# Alerts List, Audit Log & Settings Endpoints (Step 6)
+# ---------------------------------------------------------------------------
+
+
+class SettingsUpdateRequest(BaseModel):
+    settings: dict[str, Any] | None = None
+    rules_yaml: str | None = None
+    actor: str = "analyst"
+
+
+def _serialize_item(obj: Any) -> dict[str, Any]:
+    if hasattr(obj, "to_dict"):
+        return obj.to_dict()
+    return {k: v for k, v in obj.__dict__.items() if not k.startswith("_")}
+
+
+@router.get("/alerts")
+async def list_alerts(
+    status: str | None = Query(
+        None,
+        description="Filter by status: suppressed_benign, merged_duplicate, unlinked_low_priority, in_case, new",
+    ),
+) -> list[dict[str, Any]]:
+    """List alerts, optionally filtered by triage status."""
+    if IS_FAKE:
+        items = list(engine.store.alerts.values())
+        if status:
+            items = [a for a in items if a.status == status]
+        items.sort(key=lambda a: a.timestamp, reverse=True)
+        return [_serialize_item(a) for a in items]
+
+    with engine.get_session() as session:
+        q = session.query(engine.models.Alert)
+        if status:
+            q = q.filter(engine.models.Alert.status == status)
+        items = q.order_by(engine.models.Alert.timestamp.desc()).all()
+        return [_serialize_item(a) for a in items]
+
+
+@router.get("/audit")
+async def get_audit_log(
+    action: str | None = Query(None),
+    target_type: str | None = Query(None),
+    target_id: str | None = Query(None),
+    limit: int = Query(500, ge=1, le=5000),
+) -> list[dict[str, Any]]:
+    """Retrieve append-only audit log events with optional filters."""
+    events = engine.audit.list_events(
+        action=action,
+        target_type=target_type,
+        target_id=target_id,
+        limit=limit,
+    )
+    return [_serialize_item(e) for e in events]
+
+
+@router.get("/audit/export")
+async def export_audit_log(
+    format: str = Query("json", pattern="^(csv|json)$"),
+    action: str | None = Query(None),
+    target_type: str | None = Query(None),
+    target_id: str | None = Query(None),
+    limit: int = Query(5000, ge=1, le=20000),
+) -> Response:
+    """Export audit log events as downloadable CSV or JSON."""
+    events = engine.audit.list_events(
+        action=action,
+        target_type=target_type,
+        target_id=target_id,
+        limit=limit,
+    )
+    rows = [_serialize_item(e) for e in events]
+
+    if format == "json":
+        payload = json.dumps(rows, indent=2, default=str)
+        return Response(
+            content=payload,
+            media_type="application/json",
+            headers={"Content-Disposition": 'attachment; filename="prahari-audit.json"'},
+        )
+
+    buf = io.StringIO()
+    fieldnames = ["id", "timestamp", "actor", "action", "target_type", "target_id", "details"]
+    writer = csv.DictWriter(buf, fieldnames=fieldnames)
+    writer.writeheader()
+    for r in rows:
+        row_copy = dict(r)
+        row_copy["details"] = json.dumps(row_copy.get("details") or {}, default=str)
+        writer.writerow({k: row_copy.get(k) for k in fieldnames})
+
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="prahari-audit.csv"'},
+    )
+
+
+@router.get("/settings")
+async def read_settings() -> dict[str, Any]:
+    """Return current threshold settings and YAML correlation/suppression rules."""
+    return {
+        "settings": engine.settings.get_settings(),
+        "rules_yaml": engine.settings.get_rules_yaml(),
+    }
+
+
+@router.put("/settings")
+async def write_settings(payload: SettingsUpdateRequest) -> dict[str, Any]:
+    """Update settings and/or YAML rules, returning HTTP 400 on invalid YAML."""
+    if payload.rules_yaml is not None:
+        try:
+            import yaml
+
+            parsed = yaml.safe_load(payload.rules_yaml)
+            if parsed is not None and not isinstance(parsed, dict):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid rules_yaml: top-level YAML structure must be a mapping",
+                )
+        except ModuleNotFoundError:
+            if "\t" in payload.rules_yaml or payload.rules_yaml.strip().startswith(":"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid YAML syntax in rules_yaml",
+                ) from None
+        except HTTPException:
+            raise
+        except Exception as err:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid YAML syntax: {err}",
+            ) from err
+
+        engine.settings.save_rules_yaml(payload.rules_yaml)
+        engine.audit.record(
+            actor=payload.actor,
+            action="update_rules_yaml",
+            target_type="settings",
+            target_id="rules_yaml",
+            details={"length": len(payload.rules_yaml)},
+        )
+
+    if payload.settings is not None:
+        engine.settings.update_settings(payload.settings)
+        engine.audit.record(
+            actor=payload.actor,
+            action="update_settings",
+            target_type="settings",
+            target_id="settings",
+            details={"keys": sorted(payload.settings.keys())},
+        )
+
+    return {
+        "settings": engine.settings.get_settings(),
+        "rules_yaml": engine.settings.get_rules_yaml(),
+    }

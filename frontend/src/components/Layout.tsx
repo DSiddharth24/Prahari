@@ -19,7 +19,7 @@ export default function Layout() {
       <div className="flex min-h-screen flex-col bg-paper text-text">
         <a
           href="#main"
-          className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-sm focus:bg-primary focus:px-3 focus:py-2 focus:text-primary-text"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-full focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-text"
         >
           Skip to content
         </a>
@@ -43,15 +43,21 @@ export default function Layout() {
                     to={to}
                     end={end}
                     className={({ isActive }) =>
-                      `flex min-h-10 items-center gap-2 rounded-sm border-l-2 px-3 py-2 text-13 transition-colors duration-micro ${
+                      `flex min-h-11 items-center gap-3 rounded-full px-3 py-2 text-13 transition-colors duration-micro ${
                         isActive
-                          ? 'border-primary bg-sunken font-semibold text-text'
-                          : 'border-transparent text-text-secondary hover:bg-sunken hover:text-text'
+                          ? 'bg-text font-semibold text-primary-text'
+                          : 'text-text-secondary hover:bg-sunken hover:text-text'
                       }`
                     }
                   >
-                    <Icon size={16} strokeWidth={1.8} aria-hidden="true" />
-                    {label}
+                    {({ isActive }) => (
+                      <>
+                        <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full ${isActive ? 'bg-surface/15 text-primary-text' : 'bg-sunken text-text-secondary'}`}>
+                          <Icon size={16} strokeWidth={1.8} aria-hidden="true" />
+                        </span>
+                        {label}
+                      </>
+                    )}
                   </NavLink>
                 </li>
               ))}

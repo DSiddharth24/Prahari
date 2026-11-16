@@ -1,19 +1,19 @@
 /* Prahari Design Tokens – Light theme (Incident Desk) */
 :root {
   /* Colors */
-  --color-paper: #F5F4F0; /* background paper */
+  --color-paper: #F1F1F1; /* light neutral page background */
   --color-surface: #FFFFFF; /* main surface */
-  --color-sunken: #EDECE6; /* sunken panels */
-  --color-border: #DAD8CF; /* hairline borders */
-  --color-border-strong: #BDBAAE; /* stronger borders */
-  --color-text: #1A2030; /* primary text */
-  --color-text-secondary: #4A5163; /* secondary text */
-  --color-text-muted: #646B7B; /* muted text */
-  --color-primary: #1B2B4B; /* ink navy */
-  --color-primary-hover: #122039;
+  --color-sunken: #F3F3F3; /* soft grey panels */
+  --color-border: #E2E2E2; /* hairline borders */
+  --color-border-strong: #C9C9C9; /* stronger borders */
+  --color-text: #181818; /* primary text */
+  --color-text-secondary: #505050; /* secondary text */
+  --color-text-muted: #646464; /* muted text */
+  --color-primary: #171717; /* monochrome primary */
+  --color-primary-hover: #333333;
   --color-primary-text: #FFFFFF;
-  --color-link-focus: #2B6CE0; /* focus ring */
-  --color-focus-ring: #2B6CE0; /* 2px outline */
+  --color-link-focus: #171717;
+  --color-focus-ring: #171717; /* 2px outline */
   --color-success: #1F7A4D;
   --color-warning: #92600A;
   --color-error: #B42318;

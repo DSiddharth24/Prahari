@@ -184,14 +184,14 @@ export default function CaseDetail() {
         </div>
       </div>
 
-      <section aria-labelledby="deadline-heading" className="mb-8 grid gap-3 border-y border-border bg-surface px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-5">
+      <section aria-labelledby="deadline-heading" className="mb-8 grid gap-3 rounded-3xl bg-surface px-5 py-5 shadow-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-6">
         <div>
           <h2 id="deadline-heading" className="flex items-center gap-2 text-13 font-semibold text-text-secondary">
             <Clock3 size={16} aria-hidden="true" />
             6-hour reporting reminder
           </h2>
           <p className="mt-1 text-12 text-text-secondary">Reminder only. Prahari does not submit to CERT-In.</p>
-          <button type="button" className="mt-2 text-12 font-medium text-info underline underline-offset-2" onClick={() => setAdjustingDetectedAt(true)}>
+          <button type="button" className="mt-2 inline-flex min-h-9 items-center rounded-full border border-border-strong px-4 text-12 font-medium text-text hover:bg-sunken" onClick={() => setAdjustingDetectedAt(true)}>
             Adjust detected-at
           </button>
         </div>
@@ -200,7 +200,7 @@ export default function CaseDetail() {
 
       <div className="grid gap-8 xl:grid-cols-[minmax(0,1.3fr)_minmax(20rem,0.7fr)]">
         <div className="min-w-0">
-          <section aria-labelledby="summary-heading" className="mb-8">
+          <section aria-labelledby="summary-heading" className="mb-8 rounded-3xl bg-surface p-5 shadow-sm sm:p-6">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h2 id="summary-heading" className="text-19 font-semibold tracking-heading">What the evidence shows</h2>
               <span className="rounded-full border border-border-strong px-2.5 py-1 text-12 font-medium">
@@ -218,7 +218,7 @@ export default function CaseDetail() {
             ) : null}
           </section>
 
-          <section aria-labelledby="timeline-heading">
+          <section aria-labelledby="timeline-heading" className="rounded-3xl bg-surface p-5 shadow-sm sm:p-6">
             <div className="mb-3 flex items-baseline justify-between gap-3">
               <h2 id="timeline-heading" className="text-19 font-semibold tracking-heading">Evidence timeline</h2>
               <span className="text-12 text-text-secondary">{timeline.length} linked alerts</span>
@@ -266,7 +266,7 @@ export default function CaseDetail() {
         </div>
 
         <aside className="min-w-0">
-          <section aria-labelledby="score-heading" className="mb-8">
+          <section aria-labelledby="score-heading" className="mb-8 rounded-3xl bg-surface p-5 shadow-sm sm:p-6">
             <h2 id="score-heading" className="flex items-center text-16 font-semibold">
               Score breakdown <InfoTip text="Points show which evidence features contributed to the triage score. They explain the score; they are not a confidence percentage." label="About score breakdown" />
             </h2>
@@ -286,7 +286,7 @@ export default function CaseDetail() {
               ))}
             </ul>
           </section>
-          <section aria-labelledby="entities-heading" className="mb-8">
+          <section aria-labelledby="entities-heading" className="mb-8 rounded-3xl bg-surface p-5 shadow-sm sm:p-6">
             <h2 id="entities-heading" className="text-16 font-semibold">Linked entities</h2>
             <dl className="mt-3 space-y-2 text-13">
               {([
@@ -304,13 +304,13 @@ export default function CaseDetail() {
         </aside>
       </div>
 
-      <section aria-label="Case actions" className="mt-8 border-t border-border pt-5">
+      <section aria-label="Case actions" className="mt-8 rounded-3xl bg-surface p-5 shadow-sm sm:p-6">
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" onClick={() => setAction('confirm')}><FileText size={15} aria-hidden="true" />Confirm</Button>
           <QuietButton type="button" onClick={() => setAction('dismiss')}>Dismiss</QuietButton>
           <QuietButton type="button" className="border-error text-error" onClick={() => setAction('escalate')}>Escalate</QuietButton>
           {caseData.report_id ? (
-            <Link to={`/reports/${caseData.report_id}`} className="inline-flex min-h-10 items-center gap-2 rounded-sm border border-border-strong bg-surface px-3 text-13 font-semibold hover:bg-sunken">
+            <Link to={`/reports/${caseData.report_id}`} className="inline-flex min-h-10 items-center gap-2 rounded-full border border-border-strong bg-surface px-4 text-13 font-semibold hover:bg-sunken">
               <FileText size={15} aria-hidden="true" />View report
             </Link>
           ) : (

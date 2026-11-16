@@ -51,7 +51,7 @@ export default function Audit() {
         <PageHeader title="Audit log" description="Case decisions, report changes and alert restores are recorded with an actor and time." />
         <Button type="button" onClick={downloadCsv}><Download size={15} aria-hidden="true" />Export CSV</Button>
       </div>
-      <section aria-label="Audit filters" className="mb-5 grid gap-3 border-y border-border py-4 sm:grid-cols-3">
+      <section aria-label="Audit filters" className="mb-5 grid gap-3 rounded-3xl bg-surface p-5 shadow-sm sm:grid-cols-3">
         <FormField label="Action contains">
           <input className={controlClass()} value={action} onChange={(event) => setFilter('action', event.target.value)} placeholder="For example, confirm" />
         </FormField>
@@ -72,8 +72,8 @@ export default function Audit() {
         </EmptyState>
       ) : null}
       {query.data && query.data.length ? (
-        <div className="overflow-x-auto border-y border-border">
-          <table className="w-full border-collapse text-left text-13">
+        <div className="overflow-x-auto rounded-3xl bg-surface p-4 shadow-sm">
+          <table className="w-full min-w-[760px] border-separate border-spacing-y-2 text-left text-13">
             <thead>
               <tr className="bg-sunken text-12 uppercase tracking-label text-text-secondary">
                 <th scope="col" className="px-3 py-3 font-semibold">Time</th>
@@ -85,12 +85,12 @@ export default function Audit() {
             </thead>
             <tbody>
               {query.data.map((event) => (
-                <tr key={event.id} className="border-t border-border bg-surface align-top">
-                  <td className="whitespace-nowrap px-3 py-3">{formatIST(event.timestamp)}</td>
-                  <td className="break-anywhere px-3 py-3">{event.actor}</td>
-                  <td className="px-3 py-3">{event.action.replaceAll('_', ' ')}</td>
-                  <td className="whitespace-nowrap px-3 py-3">{event.target_type ?? '—'} {event.target_id ?? ''}</td>
-                  <td className="max-w-sm break-anywhere px-3 py-3 text-text-secondary">{typeof event.details === 'string' ? event.details : JSON.stringify(event.details ?? {})}</td>
+                <tr key={event.id} className="align-top">
+                  <td className="whitespace-nowrap rounded-l-2xl bg-sunken px-3 py-4">{formatIST(event.timestamp)}</td>
+                  <td className="break-anywhere bg-sunken px-3 py-4">{event.actor}</td>
+                  <td className="bg-sunken px-3 py-4">{event.action.replaceAll('_', ' ')}</td>
+                  <td className="whitespace-nowrap bg-sunken px-3 py-4">{event.target_type ?? '—'} {event.target_id ?? ''}</td>
+                  <td className="max-w-sm break-anywhere rounded-r-2xl bg-sunken px-3 py-4 text-text-secondary">{typeof event.details === 'string' ? event.details : JSON.stringify(event.details ?? {})}</td>
                 </tr>
               ))}
             </tbody>

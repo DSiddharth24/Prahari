@@ -38,7 +38,7 @@ export default function Suppressed() {
   return (
     <>
       <PageHeader title="Suppressed and merged alerts" description="Alerts removed from case grouping stay visible here. Restore one to return it to the pipeline." />
-      <div role="tablist" aria-label="Alert group" className="mb-4 flex flex-wrap border-b border-border">
+      <div role="tablist" aria-label="Alert group" className="mb-4 flex flex-wrap gap-2">
         {tabs.map((tab) => (
           <button
             key={tab.status}
@@ -48,7 +48,7 @@ export default function Suppressed() {
             aria-selected={active === tab.status}
             aria-controls="alert-list-panel"
             onClick={() => setTab(tab.status)}
-            className={`min-h-11 border-b-2 px-4 text-13 font-medium ${active === tab.status ? 'border-primary text-text' : 'border-transparent text-text-secondary hover:bg-sunken'}`}
+            className={`min-h-10 rounded-full border px-4 text-13 font-medium transition-colors duration-micro ${active === tab.status ? 'border-text bg-text text-primary-text' : 'border-transparent bg-surface text-text-secondary hover:bg-sunken'}`}
           >
             {tab.label}
           </button>
@@ -62,14 +62,14 @@ export default function Suppressed() {
         </EmptyState>
       ) : null}
       {query.data && dashboard.data?.funnel.ingested ? (
-        <section id="alert-list-panel" role="tabpanel" aria-labelledby={`tab-${active}`}>
+        <section id="alert-list-panel" role="tabpanel" aria-labelledby={`tab-${active}`} className="rounded-3xl bg-surface p-4 shadow-sm sm:p-5">
           <p className="mb-3 text-13 text-text-secondary">{currentTab.caption}. The original source alert remains available in the evidence record.</p>
           {!query.data.length ? (
-            <div className="border-y border-border py-5 text-13 text-text-secondary">No {currentTab.label.toLowerCase()} alerts. Restored alerts no longer appear in this list.</div>
+            <div className="rounded-2xl bg-sunken px-4 py-5 text-13 text-text-secondary">No {currentTab.label.toLowerCase()} alerts. Restored alerts no longer appear in this list.</div>
           ) : (
-            <ul className="divide-y divide-border border-y border-border">
+            <ul className="space-y-2">
               {query.data.map((alert) => (
-                <li key={alert.id} className="grid gap-3 bg-surface px-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-4">
+                <li key={alert.id} className="grid gap-3 rounded-2xl bg-sunken px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-5">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="break-anywhere font-semibold">{alert.title}</h2>

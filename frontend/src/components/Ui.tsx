@@ -64,7 +64,7 @@ export function Tooltip({ children, label }: { children: ReactNode; label: strin
   return (
     <span className="group relative inline-flex items-center">
       {children}
-      <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-64 -translate-x-1/2 rounded-sm bg-primary px-3 py-2 text-left text-12 font-normal leading-relaxed text-primary-text shadow-menu group-hover:block group-focus-within:block">
+      <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-64 -translate-x-1/2 rounded-2xl bg-primary px-3 py-2 text-left text-12 font-normal leading-relaxed text-primary-text shadow-menu group-hover:block group-focus-within:block">
         {label}
       </span>
     </span>
@@ -83,10 +83,10 @@ export function InfoTip({ text, label = 'More information' }: { text: string; la
 
 export function LoadingSkeleton({ rows = 4 }: { rows?: number }) {
   return (
-    <div aria-label="Loading" role="status" className="space-y-3">
+    <div aria-label="Loading" role="status" className="space-y-3 rounded-3xl bg-surface p-5 shadow-sm sm:p-6">
       <span className="sr-only">Loading data</span>
       {Array.from({ length: rows }, (_, index) => (
-        <div key={index} className="h-12 animate-pulse border-b border-border bg-sunken" />
+        <div key={index} className="h-12 animate-pulse rounded-2xl bg-sunken" />
       ))}
     </div>
   );
@@ -94,10 +94,10 @@ export function LoadingSkeleton({ rows = 4 }: { rows?: number }) {
 
 export function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
-    <div role="alert" className="border-l-4 border-error bg-surface px-4 py-3">
+    <div role="alert" className="rounded-3xl border border-white bg-surface px-5 py-5 shadow-sm sm:px-6">
       <p className="font-medium text-error">Could not load this view</p>
       <p className="mt-1 break-words text-13 text-text-secondary">{message}</p>
-      <button type="button" onClick={onRetry} className="mt-3 min-h-10 rounded-sm border border-border-strong px-3 text-13 font-medium hover:bg-sunken">Try again</button>
+      <button type="button" onClick={onRetry} className="mt-3 min-h-10 rounded-full border border-border-strong px-4 text-13 font-medium hover:bg-sunken">Try again</button>
     </div>
   );
 }
@@ -113,14 +113,14 @@ export function FormField({ label, children, hint }: { label: string; children: 
 }
 
 export function controlClass(extra = ''): string {
-  return `min-h-10 w-full rounded-sm border border-border-strong bg-surface px-3 py-2 text-14 text-text placeholder:text-text-muted ${extra}`;
+  return `min-h-10 w-full rounded-2xl border border-border-strong bg-surface px-4 py-2 text-14 text-text placeholder:text-text-muted ${extra}`;
 }
 
 export function Button({ children, className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       {...props}
-      className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-sm border border-primary bg-primary px-4 py-2 text-13 font-semibold text-primary-text transition-colors duration-micro hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-55 ${className}`}
+      className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-primary bg-primary px-4 py-2 text-13 font-semibold text-primary-text transition-colors duration-micro hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-55 ${className}`}
     >
       {children}
     </button>
@@ -131,7 +131,7 @@ export function QuietButton({ children, className = '', ...props }: ButtonHTMLAt
   return (
     <button
       {...props}
-      className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-sm border border-border-strong bg-surface px-3 py-2 text-13 font-medium text-text-secondary transition-colors duration-micro hover:bg-sunken disabled:cursor-not-allowed disabled:opacity-55 ${className}`}
+      className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-border-strong bg-surface px-4 py-2 text-13 font-medium text-text-secondary transition-colors duration-micro hover:bg-sunken disabled:cursor-not-allowed disabled:opacity-55 ${className}`}
     >
       {children}
     </button>
@@ -193,11 +193,11 @@ export function Modal({ title, children, onClose, describedBy }: {
         aria-labelledby="modal-heading"
         aria-describedby={describedBy}
         tabIndex={-1}
-        className="my-auto max-h-[calc(100vh-2rem)] w-full max-w-xl overflow-y-auto rounded-md border border-border bg-surface p-5 shadow-modal"
+        className="my-auto max-h-[calc(100vh-2rem)] w-full max-w-xl overflow-y-auto rounded-3xl border border-border bg-surface p-5 shadow-modal"
       >
         <div className="mb-4 flex items-start justify-between gap-4">
           <h2 id="modal-heading" className="text-19 font-semibold tracking-heading">{title}</h2>
-          <button type="button" onClick={onClose} aria-label="Close dialog" className="grid h-10 w-10 shrink-0 place-items-center rounded-sm text-text-secondary hover:bg-sunken">
+          <button type="button" onClick={onClose} aria-label="Close dialog" className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-text-secondary hover:bg-sunken">
             <X size={18} aria-hidden="true" />
           </button>
         </div>
